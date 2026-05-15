@@ -78,9 +78,9 @@ $logoutsByDay = $logoutEvents |
 $days = 0..($daysToShow - 1) | ForEach-Object { (Get-Date).Date.AddDays(-$_) } | Sort-Object
 
 Write-Host ""
-Write-Host ("=" * 48)
-Write-Host ("{0,-12} {1,-10} {2,-7} {3,-7} {4,-9}" -f "Date", "Day", "Begins", "Ends", "Duration")
-Write-Host ("=" * 48)
+Write-Host ("=" * 57)
+Write-Host ("{0,-12} {1,-10} {2,-7} {3,-7} {4,-9} {5,-9}" -f "Date", "Day", "Begins", "Ends", "Duration", "Hours")
+Write-Host ("=" * 57)
 
 foreach ($day in $days) {
     $login  = ($loginsByDay  | Where-Object { $_.Date -eq $day.ToString() }).FirstUse
@@ -95,8 +95,16 @@ foreach ($day in $days) {
         "{0}h {1:D2}m" -f [math]::Floor($span.TotalHours), $span.Minutes
     } else { "---" }
 
+    # Subtract 30 minutes for lunch break
+    $hoursStr = if ($login -and $logout -and $logout -gt $login) {
+        $span = ($logout - $login) - [TimeSpan]::FromMinutes(30)
+        if ($span.TotalMinutes -gt 0) {
+            "{0}h {1:D2}m" -f [math]::Floor($span.TotalHours), $span.Minutes
+        } else { "0h 00m" }
+    } else { "---" }
+
     $dayOfWeek = $day.ToString("dddd")
-    Write-Host ("{0,-12} {1,-10} {2,-7} {3,-7} {4,-9}" -f $day.ToString("yyyy-MM-dd"), $dayOfWeek, $loginStr, $logoutStr, $durationStr)
+    Write-Host ("{0,-12} {1,-10} {2,-7} {3,-7} {4,-9} {5,-9}" -f $day.ToString("yyyy-MM-dd"), $dayOfWeek, $loginStr, $logoutStr, $durationStr, $hoursStr)
 }
 
-Write-Host ("=" * 48)
+Write-Host ("=" * 57)
