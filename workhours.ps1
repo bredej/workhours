@@ -26,33 +26,25 @@ Write-Host "Fetching event log entries since $($startDate.ToString('yyyy-MM-dd')
 # Use XPath filter to efficiently query logon events with specific LogonTypes and time range
 $startDateStr = $startDate.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
 $logonTypeFilter = ($logonTypes | ForEach-Object { "EventData[Data[@Name='LogonType']='$_']" }) -join ' or '
-$xpathFilter = "*[System[EventID=4624 and TimeCreated[@SystemTime>='$startDateStr']] and ($logonTypeFilter)]"
-$logonEvents = Get-WinEvent -FilterXPath $xpathFilter -LogName 'Security' `
+
+# Combined XPath: 4801 (unlock) OR 4624 with matching LogonType
+$xpathFilter = "*[(System[EventID=4801 and TimeCreated[@SystemTime>='$startDateStr']]) or " +
+               "(System[EventID=4624 and TimeCreated[@SystemTime>='$startDateStr']] and ($logonTypeFilter))]"
+$sw = [System.Diagnostics.Stopwatch]::StartNew()
+$loginEvents = Get-WinEvent -FilterXPath $xpathFilter -LogName 'Security' `
     -ErrorAction SilentlyContinue | Select-Object TimeCreated
+$sw.Stop()
+Write-Host "Login query:  $($sw.ElapsedMilliseconds) ms" -ForegroundColor DarkGray
 
-$unlockEvents = Get-WinEvent -FilterHashtable @{
+# Combined query: 4647 (user logoff) + 4800 (workstation locked)
+$sw.Restart()
+$logoutEvents = Get-WinEvent -FilterHashtable @{
     LogName   = 'Security'
-    Id        = 4801
+    Id        = @(4647, 4800)
     StartTime = $startDate
 } -ErrorAction SilentlyContinue | Select-Object TimeCreated
-
-# Combine logon and unlock events; earliest per day = first active use
-$loginEvents = (@($logonEvents) + @($unlockEvents)) | Where-Object { $_ -ne $null }
-
-$logoffEvents = Get-WinEvent -FilterHashtable @{
-    LogName   = 'Security'
-    Id        = 4647
-    StartTime = $startDate
-} -ErrorAction SilentlyContinue | Select-Object TimeCreated
-
-$lockEvents = Get-WinEvent -FilterHashtable @{
-    LogName   = 'Security'
-    Id        = 4800
-    StartTime = $startDate
-} -ErrorAction SilentlyContinue | Select-Object TimeCreated
-
-# Combine logoff and lock events; latest per day = last active use
-$logoutEvents = (@($logoffEvents) + @($lockEvents)) | Where-Object { $_ -ne $null }
+$sw.Stop()
+Write-Host "Logout query: $($sw.ElapsedMilliseconds) ms" -ForegroundColor DarkGray
 
 # Group events by date and find the first active use per day
 $loginsByDay = $loginEvents |
