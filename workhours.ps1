@@ -37,7 +37,7 @@ $unlockEvents = Get-WinEvent -FilterHashtable @{
 } -ErrorAction SilentlyContinue | Select-Object TimeCreated
 
 # Combine logon and unlock events; earliest per day = first active use
-$loginEvents = ($logonEvents + $unlockEvents) | Where-Object { $_ -ne $null }
+$loginEvents = (@($logonEvents) + @($unlockEvents)) | Where-Object { $_ -ne $null }
 
 $logoffEvents = Get-WinEvent -FilterHashtable @{
     LogName   = 'Security'
@@ -52,7 +52,7 @@ $lockEvents = Get-WinEvent -FilterHashtable @{
 } -ErrorAction SilentlyContinue | Select-Object TimeCreated
 
 # Combine logoff and lock events; latest per day = last active use
-$logoutEvents = ($logoffEvents + $lockEvents) | Where-Object { $_ -ne $null }
+$logoutEvents = (@($logoffEvents) + @($lockEvents)) | Where-Object { $_ -ne $null }
 
 # Group events by date and find the first active use per day
 $loginsByDay = $loginEvents |
