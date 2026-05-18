@@ -28,7 +28,7 @@ $startDateStr = $startDate.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ"
 $logonTypeFilter = ($logonTypes | ForEach-Object { "EventData[Data[@Name='LogonType']='$_']" }) -join ' or '
 $xpathFilter = "*[System[EventID=4624 and TimeCreated[@SystemTime>='$startDateStr']] and ($logonTypeFilter)]"
 $logonEvents = Get-WinEvent -FilterXPath $xpathFilter -LogName 'Security' `
-    -ErrorAction Stop | Select-Object TimeCreated
+    -ErrorAction SilentlyContinue | Select-Object TimeCreated
 
 $unlockEvents = Get-WinEvent -FilterHashtable @{
     LogName   = 'Security'
@@ -56,7 +56,7 @@ $logoutEvents = (@($logoffEvents) + @($lockEvents)) | Where-Object { $_ -ne $nul
 
 # Group events by date and find the first active use per day
 $loginsByDay = $loginEvents |
-    Group-Object { $_.TimeCreated.Date } |
+    Group-Object { $_.TimeCreated.Date.ToString('yyyy-MM-dd') } |
     ForEach-Object {
         [PSCustomObject]@{
             Date       = $_.Name
@@ -66,7 +66,7 @@ $loginsByDay = $loginEvents |
 
 # Group logouts by date and find the last per day
 $logoutsByDay = $logoutEvents |
-    Group-Object { $_.TimeCreated.Date } |
+    Group-Object { $_.TimeCreated.Date.ToString('yyyy-MM-dd') } |
     ForEach-Object {
         [PSCustomObject]@{
             Date        = $_.Name
@@ -83,9 +83,10 @@ Write-Host ("{0,-12} {1,-10} {2,-7} {3,-7} {4,-9} {5,-9}" -f "Date", "Day", "Beg
 Write-Host ("=" * 57)
 
 foreach ($day in $days) {
-    $login  = ($loginsByDay  | Where-Object { $_.Date -eq $day.ToString() }).FirstUse
-    $logout = ($logoutsByDay | Where-Object { $_.Date -eq $day.ToString() }).LastLogout
-    if ($day.Date -eq (Get-Date).Date) { $logout = Get-Date }
+    $dayKey = $day.ToString('yyyy-MM-dd')
+    $login  = ($loginsByDay  | Where-Object { $_.Date -eq $dayKey }).FirstUse
+    $logout = ($logoutsByDay | Where-Object { $_.Date -eq $dayKey }).LastLogout
+    if ($day.Date -eq (Get-Date).Date -and $login) { $logout = Get-Date }
 
     $loginStr  = if ($login)  { $login.ToString("HH:mm")  } else { "---" }
     $logoutStr = if ($logout) { $logout.ToString("HH:mm") } else { "---" }
